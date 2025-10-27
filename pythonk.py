@@ -308,6 +308,6 @@ class DSA_GUI:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.geometry("900x700")  # Set initial window size
+    root.geometry("1600x900")  # Set initial window size
     app = DSA_GUI(root)
     root.mainloop()
