@@ -1,7 +1,7 @@
 (function() {
   'use strict';
   
-  // Inject keyframes for gradient rotation
+  // 
   const style = document.createElement('style');
   style.textContent = `
     @keyframes deepsite-spin {
@@ -55,11 +55,11 @@
   `;
   document.head.appendChild(style);
 
-  // Create badge wrapper (like the button element)
+  // 
   const badgeWrapper = document.createElement('div');
   badgeWrapper.id = 'deepsite-badge-wrapper';
   
-  // Create inner badge (like the span element)
+  // 
   const badgeInner = document.createElement('span');
   badgeInner.id = 'deepsite-badge-inner';
   
@@ -141,14 +141,14 @@
     badgeInner.style.boxShadow = '0 8px 32px 0 rgba(0, 0, 0, 0.5)';
   });
   
-  // Append elements
+  // 
   link.appendChild(icon);
   link.appendChild(text);
   badgeInner.appendChild(link);
   badgeWrapper.appendChild(badgeInner);
   badgeWrapper.appendChild(borderMask);
   
-  // Wait for DOM to be ready
+  // 
   function init() {
     if (document.body) {
       document.body.appendChild(badgeWrapper);
@@ -159,7 +159,7 @@
     }
   }
   
-  // Initialize
+  // 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
