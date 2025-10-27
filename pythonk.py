@@ -6,10 +6,9 @@ from Crypto.Util import number
 
 class DSA_Core:
     """
-    Lớp triển khai logic toán học cốt lõi của Thuật toán Chữ ký số (DSA).
+    Lớp triển khai logic toán học cốt lõi của Thuật toán Chữ ký số.
     Hiển thị các giá trị trung gian để minh họa quy trình.
     """
-    # Valid (L, N) pairs according to FIPS 186-4
     VALID_LN_PAIRS = [(1024, 160), (2048, 224), (2048, 256), (3072, 256)]
 
     def generate_params(self, L, N):
@@ -17,17 +16,14 @@ class DSA_Core:
         if (L, N) not in self.VALID_LN_PAIRS:
             raise ValueError(f"Cặp (L={L}, N={N}) không hợp lệ. Các cặp hợp lệ: {self.VALID_LN_PAIRS}")
         
-        # Generate q (N-bit prime)
         q = number.getPrime(N)
         
-        # Generate p (L-bit prime such that (p-1) is divisible by q)
         while True:
             k = number.getRandomNBitInteger(L - N)
             p = k * q + 1
             if p.bit_length() == L and number.isPrime(p):
                 break
         
-        # Generate g
         while True:
             h = random.randint(2, p - 2)
             exponent = (p - 1) // q
@@ -91,7 +87,6 @@ class DSA_GUI:
         self.root.title("Minh họa Thuật toán Chữ ký số (DSA)")
         self.dsa_core = DSA_Core()
         
-        # Configure style
         style = ttk.Style()
         style.configure("TButton", padding=6, relief="flat", background="#ccc")
         style.configure("TLabel", padding=5)
@@ -105,12 +100,10 @@ class DSA_GUI:
         self.create_widgets()
 
     def create_widgets(self):
-        # Create canvas and scrollbar
         self.canvas = tk.Canvas(self.root)
         self.scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=self.canvas.yview)
         self.scrollable_frame = ttk.Frame(self.canvas)
 
-        # Configure canvas
         self.scrollable_frame.bind(
             "<Configure>",
             lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
@@ -118,15 +111,12 @@ class DSA_GUI:
         self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
 
-        # Pack canvas and scrollbar
         self.canvas.pack(side="left", fill="both", expand=True)
         self.scrollbar.pack(side="right", fill="y")
 
-        # Main frame inside scrollable frame
         main_frame = ttk.Frame(self.scrollable_frame, padding="10")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
-        # --- Parameter Section ---
         params_frame = ttk.LabelFrame(main_frame, text="1. Tham số Toàn cục", padding="10")
         params_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
         
@@ -143,7 +133,6 @@ class DSA_GUI:
         self.q_text = self.create_display_field(params_frame, "q:", 2)
         self.g_text = self.create_display_field(params_frame, "g:", 3)
 
-        # --- Key Section ---
         keys_frame = ttk.LabelFrame(main_frame, text="2. Cặp khóa", padding="10")
         keys_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
 
@@ -152,7 +141,6 @@ class DSA_GUI:
         self.x_text = self.create_display_field(keys_frame, "Khóa Bí mật (x):", 1)
         self.y_text = self.create_display_field(keys_frame, "Khóa Công khai (y):", 2)
 
-        # --- Signing Section ---
         sign_frame = ttk.LabelFrame(main_frame, text="3. Ký văn bản", padding="10")
         sign_frame.grid(row=1, column=1, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
 
@@ -196,7 +184,6 @@ class DSA_GUI:
         self.u2_text = self.create_display_field(verify_frame, "u2:", 9)
         self.v_text = self.create_display_field(verify_frame, "v:", 10)
 
-        # Enable mouse wheel scrolling
         self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)  # Windows
         self.canvas.bind_all("<Button-4>", self._on_mousewheel)  # Linux
         self.canvas.bind_all("<Button-5>", self._on_mousewheel)  # Linux
@@ -308,6 +295,6 @@ class DSA_GUI:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.geometry("1600x900")  # Set initial window size
+    root.geometry("1600x900")  
     app = DSA_GUI(root)
     root.mainloop()
