@@ -4,297 +4,432 @@ import hashlib
 import random
 from Crypto.Util import number
 
+
 class DSA_Core:
-    """
-    Lớp triển khai logic toán học cốt lõi của Thuật toán Chữ ký số.
-    Hiển thị các giá trị trung gian để minh họa quy trình.
-    """
     VALID_LN_PAIRS = [(1024, 160), (2048, 224), (2048, 256), (3072, 256)]
 
     def generate_params(self, L, N):
-        """Tạo các tham số miền DSA (p, q, g)."""
         if (L, N) not in self.VALID_LN_PAIRS:
-            raise ValueError(f"Cặp (L={L}, N={N}) không hợp lệ. Các cặp hợp lệ: {self.VALID_LN_PAIRS}")
-        
+            raise ValueError(f"Cặp (L={L}, N={N}) không hợp lệ.")
         q = number.getPrime(N)
-        
         while True:
             k = number.getRandomNBitInteger(L - N)
             p = k * q + 1
             if p.bit_length() == L and number.isPrime(p):
                 break
-        
         while True:
             h = random.randint(2, p - 2)
-            exponent = (p - 1) // q
-            g = pow(h, exponent, p)
-            if g > 1:
-                break
-        
+            g = pow(h, (p - 1) // q, p)
+            if g > 1: break
         return p, q, g
 
     def generate_keys(self, p, q, g):
-        """Tạo cặp khóa bí mật/công khai (x, y)."""
         x = random.randint(1, q - 1)
         y = pow(g, x, p)
         return x, y
 
     def sign_message(self, p, q, g, x, message):
-        """Ký một thông điệp và trả về chữ ký cùng các giá trị trung gian."""
-        h_obj = hashlib.sha256()
-        h_obj.update(message.encode('utf-8'))
-        H = int(h_obj.hexdigest(), 16)
-
+        H = int(hashlib.sha256(message.encode()).hexdigest(), 16)
         while True:
             k = random.randint(1, q - 1)
             r = pow(g, k, p) % q
-            if r == 0:
-                continue
-            try:
-                k_inv = pow(k, -1, q)
-                s = (k_inv * (H + x * r)) % q
-                if s != 0:
-                    break
-            except ValueError:
-                continue
-
+            if r == 0: continue
+            k_inv = pow(k, -1, q)
+            s = (k_inv * (H + x * r)) % q
+            if s != 0: break
         return r, s, H, k
 
     def verify_signature(self, p, q, g, y, message, r, s):
-        """Xác minh chữ ký và trả về kết quả cùng các giá trị trung gian."""
+        log = []
         if not (0 < r < q and 0 < s < q):
-            return False, 0, 0, 0, 0
+            log.append("Kiểm tra phạm vi r, s → thất bại")
+            return False, 0, 0, 0, 0, log
 
-        h_obj = hashlib.sha256()
-        h_obj.update(message.encode('utf-8'))
-        H = int(h_obj.hexdigest(), 16)
+        H = int(hashlib.sha256(message.encode()).hexdigest(), 16)
+        log.append(f"H(M') = {H}")
 
         try:
             w = pow(s, -1, q)
+            log.append(f"w = s⁻¹ mod q = {w}")
         except ValueError:
-            return False, 0, 0, 0, 0
+            log.append("Không thể tính w")
+            return False, 0, 0, 0, 0, log
 
         u1 = (H * w) % q
         u2 = (r * w) % q
+        log.append(f"u1 = H·w mod q = {u1}")
+        log.append(f"u2 = r·w mod q = {u2}")
+
         v = ((pow(g, u1, p) * pow(y, u2, p)) % p) % q
+        log.append(f"v = (g^{u1} · y^{u2} mod p) mod q = {v}")
+
         is_valid = (v == r)
-        
-        return is_valid, w, u1, u2, v
+        log.append(f"Kiểm tra v == r → {'HỢP LỆ' if is_valid else 'KHÔNG HỢP LỆ'}")
+        return is_valid, w, u1, u2, v, log
+
+
 
 class DSA_GUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Minh họa Thuật toán Chữ ký số (DSA)")
-        self.dsa_core = DSA_Core()
-        
-        style = ttk.Style()
-        style.configure("TButton", padding=6, relief="flat", background="#ccc")
-        style.configure("TLabel", padding=5)
-        style.configure("TEntry", padding=5)
+        self.root.title("DSA – Minh họa Chữ ký số")
+        self.root.geometry("1720x1080")
+        self.root.configure(bg="#f8f9fa")
+        self.dsa = DSA_Core()
 
-        self.p = None
-        self.q = None
-        self.g = None
-        self.x = None
-        self.y = None
-        self.create_widgets()
+        self.p = self.q = self.g = self.x = self.y = None
+        self.last_H = self.last_w = self.last_u1 = self.last_u2 = self.last_v = None
+        self.last_r = self.last_s = None
 
-    def create_widgets(self):
-        self.canvas = tk.Canvas(self.root)
-        self.scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=self.canvas.yview)
-        self.scrollable_frame = ttk.Frame(self.canvas)
+        self.setup_style()
+        self.build_ui()
 
-        self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        )
-        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+    def setup_style(self):
+        s = ttk.Style()
+        s.theme_use('clam')
 
-        self.canvas.pack(side="left", fill="both", expand=True)
-        self.scrollbar.pack(side="right", fill="y")
+        primary = "#f97316"
+        bg = "#ffffff"
+        txt = "#1f2937"
 
-        main_frame = ttk.Frame(self.scrollable_frame, padding="10")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        params_frame = ttk.LabelFrame(main_frame, text="1. Tham số Toàn cục", padding="10")
-        params_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
-        
-        ttk.Label(params_frame, text="Cặp (L, N):").grid(row=0, column=0, sticky=tk.W)
+        s.configure(".", font=("Segoe UI", 10), background="#f8f9fa", foreground=txt)
+        s.configure("TLabelframe", background=bg, foreground=primary,
+                    font=("Segoe UI", 11, "bold"))
+        s.configure("TLabelframe.Label", background=bg, foreground=primary,
+                    font=("Segoe UI", 11, "bold"))
+
+        s.map("Accent.TButton",
+              background=[('active', primary), ('pressed', '#e55a00')],
+              foreground=[('active', 'white')])
+        s.configure("Accent.TButton", background=primary, foreground="white",
+                    borderwidth=0, padding=(16, 10), font=("Segoe UI", 10, "bold"))
+
+        s.configure("TEntry", fieldbackground="#f1f5f9", insertcolor=primary)
+        s.configure("TCombobox", fieldbackground="#f1f5f9", arrowsize=12)
+
+        self.root.option_add("*Text.Background", "#ffffff")
+        self.root.option_add("*Text.Foreground", txt)
+
+
+        s.configure("Treeview", background="#fdfdfd", fieldbackground="#fdfdfd", rowheight=28)
+        s.configure("Treeview.Heading", font=("Segoe UI", 10, "bold"), foreground=primary)
+        s.map("Treeview", background=[("selected", primary)])
+
+    def build_ui(self):
+        canvas = tk.Canvas(self.root, bg="#f8f9fa", highlightthickness=0)
+        scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=canvas.yview)
+        scroll_frame = ttk.Frame(canvas)
+        scroll_frame.bind("<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True, padx=15, pady=15)
+        scrollbar.pack(side="right", fill="y", padx=(0,15), pady=15)
+
+        main = ttk.Frame(scroll_frame, padding="18 15")
+        main.pack(fill=tk.BOTH, expand=True)
+
+
+        row0 = ttk.Frame(main)
+        row0.pack(fill=tk.X, pady=(0, 18))
+        self.build_section(row0, "1. Tham số Toàn cục", self.build_params, side=tk.LEFT)
+        self.build_section(row0, "2. Cặp Khóa", self.build_keys, side=tk.RIGHT)
+
+
+        row1 = ttk.Frame(main)
+        row1.pack(fill=tk.X, pady=(0, 18))
+        self.build_section(row1, "3. Ký Văn Bản", self.build_sign, side=tk.LEFT)
+        self.build_section(row1, "4. Xác Minh", self.build_verify, side=tk.RIGHT)
+
+
+        row2 = ttk.Frame(main)
+        row2.pack(fill=tk.X, pady=(0, 18))
+        self.build_section(row2, "5. Console Log", self.build_console, side=tk.LEFT)
+        self.build_section(row2, "6. Kết quả Xác minh", self.build_result, side=tk.RIGHT)
+
+
+        self.build_summary_table(main)
+
+
+        canvas.bind_all("<MouseWheel>", self._on_wheel)
+        canvas.bind_all("<Button-4>", self._on_wheel)
+        canvas.bind_all("<Button-5>", self._on_wheel)
+
+    def _on_wheel(self, ev):
+        dir = -1 if (ev.num == 4 or ev.delta > 0) else 1
+        self.canvas.yview_scroll(dir, "units")
+
+    def build_section(self, parent, title, builder, side):
+        frame = ttk.Labelframe(parent, text=title, padding="16 14")
+        frame.pack(side=side, fill=tk.BOTH, expand=True, padx=(0,12) if side == tk.LEFT else (12,0))
+        builder(frame)
+
+
+    def build_params(self, parent):
+        top = ttk.Frame(parent)
+        top.pack(fill=tk.X, pady=(0,10))
+
+        ttk.Label(top, text="Cặp (L,N):").pack(side=tk.LEFT)
         self.ln_var = tk.StringVar(value="2048, 256")
-        ln_options = [f"{L}, {N}" for L, N in self.dsa_core.VALID_LN_PAIRS]
-        self.ln_combo = ttk.Combobox(params_frame, textvariable=self.ln_var, values=ln_options, width=15, state="readonly")
-        self.ln_combo.grid(row=0, column=1, sticky=tk.W)
+        opts = [f"{L}, {N}" for L,N in self.dsa.VALID_LN_PAIRS]
+        cb = ttk.Combobox(top, textvariable=self.ln_var, values=opts, width=18, state="readonly")
+        cb.pack(side=tk.LEFT, padx=6)
 
-        self.params_button = ttk.Button(params_frame, text="Tạo Tham số", command=self.generate_params)
-        self.params_button.grid(row=0, column=2, padx=20)
+        self.btn_params = ttk.Button(top, text="Tạo Tham số", style="Accent.TButton", command=self.generate_params)
+        self.btn_params.pack(side=tk.LEFT)
 
-        self.p_text = self.create_display_field(params_frame, "p:", 1)
-        self.q_text = self.create_display_field(params_frame, "q:", 2)
-        self.g_text = self.create_display_field(params_frame, "g:", 3)
+        self.p_txt = self.labeled_field(parent, "p:", 0)
+        self.q_txt = self.labeled_field(parent, "q:", 1)
+        self.g_txt = self.labeled_field(parent, "g:", 2)
 
-        keys_frame = ttk.LabelFrame(main_frame, text="2. Cặp khóa", padding="10")
-        keys_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
 
-        self.keys_button = ttk.Button(keys_frame, text="Tạo Cặp Khóa", command=self.generate_keys, state="disabled")
-        self.keys_button.grid(row=0, column=0, columnspan=2, pady=5)
-        self.x_text = self.create_display_field(keys_frame, "Khóa Bí mật (x):", 1)
-        self.y_text = self.create_display_field(keys_frame, "Khóa Công khai (y):", 2)
+    def build_keys(self, parent):
+        self.btn_keys = ttk.Button(parent, text="Tạo Cặp Khóa", style="Accent.TButton",
+                                   command=self.generate_keys, state="disabled")
+        self.btn_keys.pack(pady=(0,12))
 
-        sign_frame = ttk.LabelFrame(main_frame, text="3. Ký văn bản", padding="10")
-        sign_frame.grid(row=1, column=1, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        self.x_txt = self.labeled_field(parent, "x (bí mật):", 0)
+        self.y_txt = self.labeled_field(parent, "y (công khai):", 1)
 
-        ttk.Label(sign_frame, text="Văn bản gốc (M):").grid(row=0, column=0, columnspan=2, sticky=tk.W)
-        self.msg_sign_text = scrolledtext.ScrolledText(sign_frame, height=4, width=50)
-        self.msg_sign_text.grid(row=1, column=0, columnspan=2, pady=5)
-        self.msg_sign_text.insert(tk.END, "Đây là một thông điệp kiểm tra.")
 
-        self.sign_button = ttk.Button(sign_frame, text="Ký văn bản", command=self.sign_message, state="disabled")
-        self.sign_button.grid(row=2, column=0, columnspan=2, pady=5)
-        
-        self.H_text = self.create_display_field(sign_frame, "H(M):", 3)
-        self.k_text = self.create_display_field(sign_frame, "k (nonce):", 4)
-        self.r_text = self.create_display_field(sign_frame, "r:", 5)
-        self.s_text = self.create_display_field(sign_frame, "s:", 6)
+    def build_sign(self, parent):
+        ttk.Label(parent, text="Văn bản (M):").pack(anchor="w", pady=(0,4))
+        self.msg_sign = scrolledtext.ScrolledText(parent, height=4, font=("Consolas", 10))
+        self.msg_sign.pack(fill=tk.X, pady=(0,10))
+        self.msg_sign.insert(tk.END, "Đây là một thông điệp kiểm tra.")
 
-        # --- Verification Section ---
-        verify_frame = ttk.LabelFrame(main_frame, text="4. Xác minh Chữ ký", padding="10")
-        verify_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        self.btn_sign = ttk.Button(parent, text="Ký Văn Bản", style="Accent.TButton",
+                                   command=self.sign_message, state="disabled")
+        self.btn_sign.pack(pady=(0,12))
 
-        ttk.Label(verify_frame, text="Văn bản cần xác minh (M'):").grid(row=0, column=0, columnspan=2, sticky=tk.W)
-        self.msg_verify_text = scrolledtext.ScrolledText(verify_frame, height=4, width=80)
-        self.msg_verify_text.grid(row=1, column=0, columnspan=2, pady=5)
+        self.H_txt = self.labeled_field(parent, "H(M):", 0)
+        self.k_txt = self.labeled_field(parent, "k:", 1)
+        self.r_txt = self.labeled_field(parent, "r:", 2)
+        self.s_txt = self.labeled_field(parent, "s:", 3)
 
-        ttk.Label(verify_frame, text="r':").grid(row=2, column=0, sticky=tk.W)
-        self.r_verify_entry = ttk.Entry(verify_frame, width=80)
-        self.r_verify_entry.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E))
-        
-        ttk.Label(verify_frame, text="s':").grid(row=4, column=0, sticky=tk.W)
-        self.s_verify_entry = ttk.Entry(verify_frame, width=80)
-        self.s_verify_entry.grid(row=5, column=0, columnspan=2, sticky=(tk.W, tk.E))
 
-        self.verify_button = ttk.Button(verify_frame, text="Xác minh Chữ ký", command=self.verify_signature, state="disabled")
-        self.verify_button.grid(row=6, column=0, pady=10)
-        
-        self.status_label = ttk.Label(verify_frame, text="Trạng thái: CHƯA XÁC MINH", font=("Helvetica", 12, "bold"))
-        self.status_label.grid(row=6, column=1, sticky=tk.W, padx=20)
+    def build_verify(self, parent):
+        ttk.Label(parent, text="Văn bản (M'):").pack(anchor="w", pady=(0,4))
+        self.msg_verify = scrolledtext.ScrolledText(parent, height=4, font=("Consolas", 10))
+        self.msg_verify.pack(fill=tk.X, pady=(0,10))
 
-        self.w_text = self.create_display_field(verify_frame, "w:", 7)
-        self.u1_text = self.create_display_field(verify_frame, "u1:", 8)
-        self.u2_text = self.create_display_field(verify_frame, "u2:", 9)
-        self.v_text = self.create_display_field(verify_frame, "v:", 10)
+        grid = ttk.Frame(parent)
+        grid.pack(fill=tk.X, pady=(0,12))
 
-        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)  # Windows
-        self.canvas.bind_all("<Button-4>", self._on_mousewheel)  # Linux
-        self.canvas.bind_all("<Button-5>", self._on_mousewheel)  # Linux
+        ttk.Label(grid, text="r':", width=6).grid(row=0, column=0, sticky="w", padx=(0,5))
+        self.r_entry = ttk.Entry(grid, font=("Consolas", 10))
+        self.r_entry.grid(row=0, column=1, sticky="ew", padx=(0,0))
+        grid.columnconfigure(1, weight=1)
 
-    def _on_mousewheel(self, event):
-        """Handle mouse wheel scrolling."""
-        if event.num == 5 or event.delta < 0:
-            self.canvas.yview_scroll(1, "units")
-        elif event.num == 4 or event.delta > 0:
-            self.canvas.yview_scroll(-1, "units")
+        ttk.Label(grid, text="s':", width=6).grid(row=1, column=0, sticky="w", padx=(0,5), pady=(6,0))
+        self.s_entry = ttk.Entry(grid, font=("Consolas", 10))
+        self.s_entry.grid(row=1, column=1, sticky="ew", pady=(6,0))
 
-    def create_display_field(self, parent, label_text, row):
-        ttk.Label(parent, text=label_text).grid(row=row, column=0, sticky=tk.W, pady=2)
-        text_widget = scrolledtext.ScrolledText(parent, height=2, width=80, wrap=tk.WORD)
-        text_widget.grid(row=row, column=1, sticky=(tk.W, tk.E), pady=2)
-        text_widget.configure(state='disabled')
-        return text_widget
+        self.btn_verify = ttk.Button(parent, text="Xác Minh", style="Accent.TButton",
+                                     command=self.verify_signature, state="disabled")
+        self.btn_verify.pack(pady=(0,12))
 
-    def update_text_field(self, widget, content):
-        widget.configure(state='normal')
-        widget.delete('1.0', tk.END)
-        widget.insert(tk.END, str(content))
-        widget.configure(state='disabled')
+        self.w_txt = self.labeled_field(parent, "w:", 0)
+        self.u1_txt = self.labeled_field(parent, "u1:", 1)
+        self.u2_txt = self.labeled_field(parent, "u2:", 2)
+        self.v_txt = self.labeled_field(parent, "v:", 3)
+
+
+    def build_console(self, parent):
+        self.console = scrolledtext.ScrolledText(parent, height=12, font=("Consolas", 9),
+                                                bg="#1e1e1e", fg="#00FF00",
+                                                insertbackground="#00FF00")
+        self.console.pack(fill=tk.BOTH, expand=True)
+        self.console.configure(state="disabled")
+
+
+    def build_result(self, parent):
+        self.result_label = ttk.Label(parent, text="CHƯA XÁC MINH",
+                                      font=("Segoe UI", 16, "bold"),
+                                      foreground="#6b7280", anchor="center")
+        self.result_label.pack(fill=tk.BOTH, expand=True, pady=20)
+
+
+    def build_summary_table(self, parent):
+        frame = ttk.Labelframe(parent, text="7. Các Giá Trị", padding="16 12")
+        frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+
+        columns = ("var", "desc", "value")
+        self.tree = ttk.Treeview(frame, columns=columns, show="headings", height=16)
+        self.tree.heading("var", text="Biến")
+        self.tree.heading("desc", text="Mô Tả")
+        self.tree.heading("value", text="Giá Trị")
+
+        self.tree.column("var", width=80, anchor="center")
+        self.tree.column("desc", width=500, anchor="w")
+        self.tree.column("value", width=150, anchor="center")
+
+        # Dữ liệu mẫu ban đầu
+        self.tree_data = [
+            ("", "Tham Số Hệ Thống", ""),
+            ("p", "Số nguyên tố modulo", "—"),
+            ("q", "Ước số nguyên tố của (p−1)", "—"),
+            ("g", "Phần tử sinh", "—"),
+            ("", "Cặp Khóa", ""),
+            ("x", "Khóa bí mật (riêng tư)", "—"),
+            ("y", "Khóa công khai (y = g^x mod p)", "—"),
+            ("", "Thành Phần Chữ Ký", ""),
+            ("r'", "Thành phần chữ ký r (từ (g^k mod p) mod q)", "—"),
+            ("s'", "Thành phần chữ ký s (từ k⁻¹ * (H(m) + x*r) mod q)", "—"),
+            ("", "Quá Trình Xác Minh", ""),
+            ("H(m')", "Giá trị băm thông điệp mod q", "—"),
+            ("w", "w = s'⁻¹ mod q", "—"),
+            ("u1", "u1 = H(m') * w mod q", "—"),
+            ("u2", "u2 = r' * w mod q", "—"),
+            ("v", "v = (g^u1 * y^u2 mod p) mod q", "—"),
+            ("", "Kết Quả Xác Minh", ""),
+            ("Valid", "v ≡ r' (mod q)", "—"),
+        ]
+
+        for var, desc, val in self.tree_data:
+            if var == "":
+                self.tree.insert("", "end", values=(var, desc, val), tags=("header",))
+            else:
+                self.tree.insert("", "end", values=(var, desc, val))
+
+        self.tree.tag_configure("header", background="#f3f4f6", font=("Segoe UI", 10, "bold"))
+
+        vsb = ttk.Scrollbar(frame, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=vsb.set)
+        self.tree.pack(side="left", fill=tk.BOTH, expand=True)
+        vsb.pack(side="right", fill="y")
+
+
+    def labeled_field(self, parent, label, row):
+        f = ttk.Frame(parent)
+        f.pack(fill=tk.X, pady=3)
+        ttk.Label(f, text=label, width=26, anchor="w", font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
+        txt = scrolledtext.ScrolledText(f, height=2, font=("Consolas", 9), relief="flat", bg="#f8f9fa")
+        txt.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=(8,0))
+        txt.configure(state="disabled")
+        return txt
+
+    def _update(self, widget, value):
+        widget.configure(state="normal")
+        widget.delete("1.0", tk.END)
+        widget.insert(tk.END, str(value))
+        widget.configure(state="disabled")
+
+    def _log(self, text):
+        self.console.configure(state="normal")
+        self.console.insert(tk.END, text + "\n")
+        self.console.see(tk.END)
+        self.console.configure(state="disabled")
+
+    def _clear_log(self):
+        self.console.configure(state="normal")
+        self.console.delete("1.0", tk.END)
+        self.console.configure(state="disabled")
+
+    def update_summary_table(self):
+        values = {
+            "p": self.p,
+            "q": self.q,
+            "g": self.g,
+            "x": self.x,
+            "y": self.y,
+            "r'": self.last_r,
+            "s'": self.last_s,
+            "H(m')": self.last_H,
+            "w": self.last_w,
+            "u1": self.last_u1,
+            "u2": self.last_u2,
+            "v": self.last_v,
+            "Valid": "HỢP LỆ" if self.result_label["text"] == "HỢP LỆ" else "KHÔNG HỢP LỆ" if self.result_label["text"] == "KHÔNG HỢP LỆ" else "—"
+        }
+
+        for i, (var, _, _) in enumerate(self.tree_data):
+            if var in values:
+                self.tree.item(self.tree.get_children()[i], values=(var, self.tree_data[i][1], values[var]))
+
 
     def generate_params(self):
         try:
             L, N = map(int, self.ln_var.get().split(", "))
-            self.status_label.config(text="Trạng thái: Đang tạo tham số...", foreground="blue")
-            self.root.update()
-            self.p, self.q, self.g = self.dsa_core.generate_params(L, N)
-            self.update_text_field(self.p_text, self.p)
-            self.update_text_field(self.q_text, self.q)
-            self.update_text_field(self.g_text, self.g)
-            self.status_label.config(text="Trạng thái: Đã tạo tham số", foreground="black")
-            self.keys_button.config(state="normal")
+            self.result_label.config(text="Đang tạo...", foreground="#f59e0b")
+            self.root.update_idletasks()
+            self.p, self.q, self.g = self.dsa.generate_params(L, N)
+            self._update(self.p_txt, self.p)
+            self._update(self.q_txt, self.q)
+            self._update(self.g_txt, self.g)
+            self.result_label.config(text="Tham số OK", foreground="#10b981")
+            self.btn_keys.config(state="normal")
+            self.update_summary_table()
         except Exception as e:
-            self.status_label.config(text="Trạng thái: Lỗi", foreground="red")
-            messagebox.showerror("Lỗi", f"Không thể tạo tham số: {e}")
+            messagebox.showerror("Lỗi", str(e))
+            self.result_label.config(text="Lỗi", foreground="#ef4444")
 
     def generate_keys(self):
-        if not hasattr(self, 'p') or self.p is None:
-            messagebox.showwarning("Cảnh báo", "Vui lòng tạo tham số trước.")
-            return
-        try:
-            self.x, self.y = self.dsa_core.generate_keys(self.p, self.q, self.g)
-            self.update_text_field(self.x_text, self.x)
-            self.update_text_field(self.y_text, self.y)
-            self.sign_button.config(state="normal")
-        except Exception as e:
-            messagebox.showerror("Lỗi", f"Không thể tạo khóa: {e}")
+        if not self.p: return messagebox.showwarning("Cảnh báo", "Tạo tham số trước.")
+        self.x, self.y = self.dsa.generate_keys(self.p, self.q, self.g)
+        self._update(self.x_txt, self.x)
+        self._update(self.y_txt, self.y)
+        self.btn_sign.config(state="normal")
+        self.update_summary_table()
 
     def sign_message(self):
-        if not hasattr(self, 'x') or self.x is None:
-            messagebox.showwarning("Cảnh báo", "Vui lòng tạo cặp khóa trước.")
-            return
-        
-        message = self.msg_sign_text.get("1.0", tk.END).strip()
-        if not message:
-            messagebox.showwarning("Cảnh báo", "Văn bản không được để trống.")
-            return
+        if not self.x: return messagebox.showwarning("Cảnh báo", "Tạo khóa trước.")
+        msg = self.msg_sign.get("1.0", tk.END).strip()
+        if not msg: return messagebox.showwarning("Cảnh báo", "Văn bản rỗng.")
 
-        try:
-            r, s, H, k = self.dsa_core.sign_message(self.p, self.q, self.g, self.x, message)
-            self.update_text_field(self.H_text, H)
-            self.update_text_field(self.k_text, k)
-            self.update_text_field(self.r_text, r)
-            self.update_text_field(self.s_text, s)
+        r, s, H, k = self.dsa.sign_message(self.p, self.q, self.g, self.x, msg)
+        self._update(self.H_txt, H)
+        self._update(self.k_txt, k)
+        self._update(self.r_txt, r)
+        self._update(self.s_txt, s)
 
-            self.msg_verify_text.delete('1.0', tk.END)
-            self.msg_verify_text.insert(tk.END, message)
-            self.r_verify_entry.delete(0, tk.END)
-            self.r_verify_entry.insert(0, str(r))
-            self.s_verify_entry.delete(0, tk.END)
-            self.s_verify_entry.insert(0, str(s))
-            self.verify_button.config(state="normal")
-        except Exception as e:
-            messagebox.showerror("Lỗi", f"Không thể ký văn bản: {e}")
+        self.msg_verify.delete("1.0", tk.END); self.msg_verify.insert(tk.END, msg)
+        self.r_entry.delete(0, tk.END); self.r_entry.insert(0, str(r))
+        self.s_entry.delete(0, tk.END); self.s_entry.insert(0, str(s))
+
+        self.last_r, self.last_s = r, s
+        self.btn_verify.config(state="normal")
+        self.result_label.config(text="ĐÃ KÝ", foreground="#f59e0b")
+        self.update_summary_table()
 
     def verify_signature(self):
-        if not hasattr(self, 'y') or self.y is None:
-            messagebox.showwarning("Cảnh báo", "Vui lòng tạo cặp khóa và ký trước.")
-            return
-
-        message = self.msg_verify_text.get("1.0", tk.END).strip()
-        if not message:
-            messagebox.showwarning("Cảnh báo", "Văn bản xác minh không được để trống.")
-            return
-
+        if not self.y: return messagebox.showwarning("Cảnh báo", "Cần khóa + chữ ký.")
+        msg = self.msg_verify.get("1.0", tk.END).strip()
         try:
-            r = int(self.r_verify_entry.get())
-            s = int(self.s_verify_entry.get())
+            r = int(self.r_entry.get())
+            s = int(self.s_entry.get())
         except ValueError:
-            messagebox.showerror("Lỗi", "r' và s' phải là các số nguyên.")
-            return
+            return messagebox.showerror("Lỗi", "r', s' phải là số nguyên.")
 
-        try:
-            is_valid, w, u1, u2, v = self.dsa_core.verify_signature(self.p, self.q, self.g, self.y, message, r, s)
-            self.update_text_field(self.w_text, w)
-            self.update_text_field(self.u1_text, u1)
-            self.update_text_field(self.u2_text, u2)
-            self.update_text_field(self.v_text, v)
+        self._clear_log()
+        self._log("BẮT ĐẦU XÁC MINH".center(50, "="))
 
-            if is_valid:
-                self.status_label.config(text="Trạng thái: Chữ ký HỢP LỆ (v=r')", foreground="green")
-            else:
-                self.status_label.config(text="Trạng thái: Chữ ký KHÔNG HỢP LỆ (v!=r')", foreground="red")
-        except Exception as e:
-            messagebox.showerror("Lỗi", f"Không thể xác minh chữ ký: {e}")
+        is_valid, w, u1, u2, v, log_lines = self.dsa.verify_signature(
+            self.p, self.q, self.g, self.y, msg, r, s)
+
+        self._update(self.w_txt, w)
+        self._update(self.u1_txt, u1)
+        self._update(self.u2_txt, u2)
+        self._update(self.v_txt, v)
+
+        self.last_H, self.last_w, self.last_u1, self.last_u2, self.last_v = (
+            int(hashlib.sha256(msg.encode()).hexdigest(), 16), w, u1, u2, v
+        )
+
+        for line in log_lines:
+            self._log(line)
+
+        if is_valid:
+            self.result_label.config(text="HỢP LỆ", foreground="#10b981", font=("Segoe UI", 16, "bold"))
+        else:
+            self.result_label.config(text="KHÔNG HỢP LỆ", foreground="#ef4444", font=("Segoe UI", 16, "bold"))
+
+        self._log("KẾT THÚC XÁC MINH".center(50, "="))
+        self.update_summary_table()
+
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.geometry("1600x900")  
     app = DSA_GUI(root)
     root.mainloop()
