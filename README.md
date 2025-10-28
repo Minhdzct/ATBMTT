@@ -21,7 +21,7 @@ Hiện tại không có gì
 
 # Kế hoạch cải thiện
 
-- Thêm ô console để hiện 
+- Thêm ô console để hiện [DONE]
 "Tất cả các yêu cầu được thực hiện trên giao diện màn hình của chương trình phần mềm. 
 Hiển thị kết quả các bước quá trình tính toán và kết quả cuối cùng của hệ chữ ký trên màn hình giao diện."
 
