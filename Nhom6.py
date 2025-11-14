@@ -715,10 +715,6 @@ class DSA_GUI:
         self._log("KẾT THÚC XÁC MINH".center(50, "="))
         self.update_summary_table()
 
-
-# -------------------------
-# CHẠY CHƯƠNG TRÌNH
-# -------------------------
 if __name__ == "__main__":
     root = tk.Tk()
     app = DSA_GUI(root)
