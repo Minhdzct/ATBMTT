@@ -2,44 +2,39 @@
 chcp 65001 >nul
 title Trình khởi chạy Nhóm 6
 
-echo ================================================
-echo   Đang khởi chạy chương trình...
-echo ================================================
+set GIT_LINK=https://github.com/Minhdzct/ATBMTT/blob/main/Nhom6.py
+
+echo ======================================================
+echo   Đang kiểm tra cài đặt và khởi chạy chương trình...
+echo ======================================================
 echo.
 
 if not exist Nhom6.py (
-    echo Không tìm thấy file Nhom6.py
-
-    powershell -command "Add-Type -AssemblyName PresentationFramework;[System.Windows.MessageBox]::Show('Không tìm thấy file Nhom6.py. Tải xuống ở https://github.com/Minhdzct/ATBMTT/tree/main','Lỗi',0,16)"
-
+    echo Không tìm thấy file Nhom6.py.
+    powershell -NoLogo -Command "Add-Type -AssemblyName PresentationFramework; if([System.Windows.MessageBox]::Show('Không tìm thấy file Nhom6.py. Mở GitHub để tải không?','Lỗi','OKCancel','Error') -eq 'OK'){Start-Process '%GIT_LINK%'}"
     pause
     exit /b
 )
 
-echo File Nhom6.py đã được tìm thấy.
+echo Đã tìm thấy file Nhom6.py.
 echo.
 
 echo Kiểm tra Python...
 py --version >nul 2>&1
 IF %ERRORLEVEL% NEQ 0 (
-    echo Python chưa được cài. Cài tại:
-    echo https://www.python.org/downloads/
-
-    powershell -command "Add-Type -AssemblyName PresentationFramework;[System.Windows.MessageBox]::Show('Python chưa được cài! Vui lòng cài đặt trước khi chạy chương trình.','Lỗi',0,16)"
+    powershell -Command "Add-Type -AssemblyName PresentationFramework;[System.Windows.MessageBox]::Show('Python chưa được cài. Hãy tải tại python.org','Lỗi','OK','Error')"
+    echo Python CHƯA được cài. Tải tại: https://www.python.org/downloads/
     pause
     exit /b
 )
-
 echo Python OK.
 echo.
 
 echo Cài thư viện pycryptodome (nếu chưa có)...
 pip install pycryptodome
-
 echo.
+
 echo Đang chạy Nhom6.py...
-echo.
-
 py Nhom6.py
 
 echo.
