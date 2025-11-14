@@ -1,3 +1,17 @@
+# FINAL FILE NHOM 6
+
+Nhom6.py
+
+
+
+
+
+
+
+
+
+
+# OUDATED OUDATED OUDATED OUDATED OUDATED OUDATED OUDATED OUDATED OUDATED OUDATED OUDATED OUDATED 
 # Link video 27/10/2025: 
 
 https://youtu.be/3mddiWRfDto
@@ -22,8 +36,7 @@ Hiện tại không có gì
 # Kế hoạch cải thiện
 
 - Thêm ô console để hiện [DONE]
-"Tất cả các yêu cầu được thực hiện trên giao diện màn hình của chương trình phần mềm. 
-Hiển thị kết quả các bước quá trình tính toán và kết quả cuối cùng của hệ chữ ký trên màn hình giao diện."
-
-- Làm nó đẹp hơn (màu mè tý)
-- Cùng lắm sai đề làm lại toàn bộ
+"Tất cả các yêu cầu được thực hiện trên giao diện màn hình của chương trình phần mềm." [DONE]
+Hiển thị kết quả các bước quá trình tính toán và kết quả cuối cùng của hệ chữ ký trên màn hình giao diện. [DONE]
+- Làm nó đẹp hơn (màu mè tý) [DONE]
+- Cùng lắm sai đề làm lại toàn bộ [DONE]
