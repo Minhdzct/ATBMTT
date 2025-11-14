@@ -1,7 +1,6 @@
 # FINAL FILE NHOM 6
 
-Nhom6.py
-Cài đặt và chạy chương trình.bat
+Nhom6.py & Cài đặt và chạy chương trình.bat
 
 
 
@@ -11,7 +10,7 @@ Cài đặt và chạy chương trình.bat
 
 
 
-# OUTDATED OUTDATED OUTDATED OUTDATED OUTDATED 
+# OUTDATED OUTDATED OUTDATED OUTDATED 
 # Link video 27/10/2025: 
 
 https://youtu.be/3mddiWRfDto
